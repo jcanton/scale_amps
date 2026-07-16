@@ -2088,6 +2088,14 @@ contains
 
              call PROF_rapstart("amps_micro",3)
 
+             if ( AMPS_DUMP_active(i,j) ) then
+                call AMPS_DUMP_micro(1, isect, i, j, nmic, istrt, dt,             &
+                                     jseed(isect), ifrst(isect), isect_seed(isect), nextn(isect), &
+                                     kmicvm, qcvm, v3v, qvvm, moist_denvm, ptotvm, &
+                                     tvm, wbvm, trpvm, qrpvm, qipvm, qapvm,        &
+                                     dmtendlm, dcontendlm, dbintendlm)
+             end if
+
              call ifc_cloud_micro( &
                                   CM(isect) &
                                   ,qcvm,v3v &
@@ -2103,6 +2111,14 @@ contains
                                   )
 
              call PROF_rapend("amps_micro",3)
+
+             if ( AMPS_DUMP_active(i,j) ) then
+                call AMPS_DUMP_micro(2, isect, i, j, nmic, istrt, dt,             &
+                                     jseed(isect), ifrst(isect), isect_seed(isect), nextn(isect), &
+                                     kmicvm, qcvm, v3v, qvvm, moist_denvm, ptotvm, &
+                                     tvm, wbvm, trpvm, qrpvm, qipvm, qapvm,        &
+                                     dmtendlm, dcontendlm, dbintendlm)
+             end if
 
           end if
 
@@ -5223,5 +5239,46 @@ contains
     write(fid) int(size(a,1),4), int(size(a,2),4), int(size(a,3),4), int(size(a,4),4)
     write(fid) real(a,8)
   end subroutine AMPS_DUMP_w_r4
+
+  subroutine AMPS_DUMP_micro(phase, isect, i, j, nmic, istrt, dt,           &
+                             jseed_t, ifrst_t, isect_seed_t, nextn_t,       &
+                             kmicvm, qcvm, v3v, qvvm, moist_denvm, ptotvm,  &
+                             tvm, wbvm, trpvm, qrpvm, qipvm, qapvm,         &
+                             dmtendlm, dcontendlm, dbintendlm)
+    integer,  intent(in) :: phase, isect, i, j, nmic, istrt
+    real(RP), intent(in) :: dt
+    integer,  intent(in) :: jseed_t, ifrst_t, isect_seed_t, nextn_t
+    integer,  intent(in) :: kmicvm(:)
+    real(RP), intent(in) :: qcvm(:), v3v(:), qvvm(:), moist_denvm(:), ptotvm(:), tvm(:), wbvm(:)
+    real(RP), intent(in) :: trpvm(:,:)
+    real(RP), intent(in) :: qrpvm(:,:,:,:), qipvm(:,:,:,:), qapvm(:,:,:,:)
+    real(RP), intent(in) :: dmtendlm(:,:,:), dcontendlm(:,:,:), dbintendlm(:,:,:,:)
+    integer :: fid
+    fid = amps_dump_fid(isect)
+    write(fid) int(1095586131,4), int(1,4)
+    write(fid) int(phase,4), int(TIME_AMPS,4), int(i,4), int(j,4), int(isect,4), int(nmic,4)
+    write(fid) int(npr,4), int(nbr,4), int(ncr,4), int(npi,4), int(nbi,4), int(nci,4), &
+               int(npa,4), int(nba,4), int(nca,4), int(mxnbin,4)
+    write(fid) int(istrt,4), int(jseed_t,4), int(ifrst_t,4), int(isect_seed_t,4), int(nextn_t,4)
+    call AMPS_DUMP_w_r0(fid, dt)
+    call AMPS_DUMP_w_i1(fid, kmicvm(1:nmic))
+    call AMPS_DUMP_w_r1(fid, qcvm(1:nmic))
+    call AMPS_DUMP_w_r1(fid, v3v(1:nmic))
+    call AMPS_DUMP_w_r1(fid, qvvm(1:nmic))
+    call AMPS_DUMP_w_r1(fid, moist_denvm(1:nmic))
+    call AMPS_DUMP_w_r1(fid, ptotvm(1:nmic))
+    call AMPS_DUMP_w_r1(fid, tvm(1:nmic))
+    call AMPS_DUMP_w_r1(fid, wbvm(1:nmic))
+    call AMPS_DUMP_w_r1(fid, trpvm(1:nmic,1))   ! thil
+    call AMPS_DUMP_w_r1(fid, trpvm(1:nmic,2))   ! qtp
+    call AMPS_DUMP_w_r4(fid, qrpvm(:,:,:,1:nmic))
+    call AMPS_DUMP_w_r4(fid, qipvm(:,:,:,1:nmic))
+    call AMPS_DUMP_w_r4(fid, qapvm(:,:,:,1:nmic))
+    if ( phase == 2 ) then
+       call AMPS_DUMP_w_r3(fid, dmtendlm(:,:,1:nmic))
+       call AMPS_DUMP_w_r3(fid, dcontendlm(:,:,1:nmic))
+       call AMPS_DUMP_w_r4(fid, dbintendlm(:,:,:,1:nmic))
+    end if
+  end subroutine AMPS_DUMP_micro
 
 end module scale_atmos_phy_mp_amps
