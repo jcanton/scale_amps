@@ -2399,6 +2399,16 @@ contains
 
              if(k2r.gt.0) then
                 isn=0
+                if ( AMPS_DUMP_active(i,j) ) then
+                   call AMPS_DUMP_sed(3, isect, i, j, 0, iadvv, dt,                     &
+                                      npr, nbr, ncr, k1r, k2r, k1m, k2m, k1br, k2br,    &
+                                      qrpv, qrv, qiv, qcv, trpv(:,2), moist_denv,       &
+                                      thetav, qvv, tv, DENS(KS-1:KE,i,j), MOMZ(KS-1:KE,i,j), &
+                                      U(KS-1:KE,i,j), V(KS-1:KE,i,j),                   &
+                                      CZ(KS-1:KE,i,j), FZ(KS-1:KE,i,j), dzzmv, dzvmv, mmassrv, &
+                                      den_t, MOMZ_t(KS-1:KE,i,j), RHOU_t(KS-1:KE,i,j),  &
+                                      RHOV_t(KS-1:KE,i,j), RHOE_t(KS-1:KE,i,j), SFLX_rain(i,j))
+                end if
                 ! original
                 call sclsedprz_original(qrv,qiv,qcv,trpv(:,2) &
                                        ,isprayr &
@@ -2425,6 +2435,16 @@ contains
                                        ,SFLX_rain(i,j))           ! [INOUT]  surface flux
 
                 SFLX_rain(i,j) = abs(SFLX_rain(i,j))
+                if ( AMPS_DUMP_active(i,j) ) then
+                   call AMPS_DUMP_sed(4, isect, i, j, 0, iadvv, dt,                     &
+                                      npr, nbr, ncr, k1r, k2r, k1m, k2m, k1br, k2br,    &
+                                      qrpv, qrv, qiv, qcv, trpv(:,2), moist_denv,       &
+                                      thetav, qvv, tv, DENS(KS-1:KE,i,j), MOMZ(KS-1:KE,i,j), &
+                                      U(KS-1:KE,i,j), V(KS-1:KE,i,j),                   &
+                                      CZ(KS-1:KE,i,j), FZ(KS-1:KE,i,j), dzzmv, dzvmv, mmassrv, &
+                                      den_t, MOMZ_t(KS-1:KE,i,j), RHOU_t(KS-1:KE,i,j),  &
+                                      RHOV_t(KS-1:KE,i,j), RHOE_t(KS-1:KE,i,j), SFLX_rain(i,j))
+                end if
              end if
 !
 !-----------------------------------------------------------------------------------------------
@@ -2434,6 +2454,16 @@ contains
 
              if(k2i.gt.0) then
                 isn=1
+                if ( AMPS_DUMP_active(i,j) ) then
+                   call AMPS_DUMP_sed(3, isect, i, j, 1, iadvv, dt,                     &
+                                      npi, nbi, nci, k1i, k2i, k1m, k2m, k1bi, k2bi,    &
+                                      qipv, qiv, qrv, qcv, trpv(:,2), moist_denv,       &
+                                      thetav, qvv, tv, DENS(KS-1:KE,i,j), MOMZ(KS-1:KE,i,j), &
+                                      U(KS-1:KE,i,j), V(KS-1:KE,i,j),                   &
+                                      CZ(KS-1:KE,i,j), FZ(KS-1:KE,i,j), dzzmv, dzvmv, mmassiv, &
+                                      den_t, MOMZ_t(KS-1:KE,i,j), RHOU_t(KS-1:KE,i,j),  &
+                                      RHOV_t(KS-1:KE,i,j), RHOE_t(KS-1:KE,i,j), SFLX_snow(i,j))
+                end if
                 call sclsedprz_original(qiv,qrv,qcv,trpv(:,2) &
                                        ,isprayi &
                                        ,nzh,1,1,1,npi,nbi,nci,k1i,k2i,k1m,k2m &
@@ -2460,6 +2490,16 @@ contains
 
 
                 SFLX_snow(i,j) = abs(SFLX_snow(i,j))
+                if ( AMPS_DUMP_active(i,j) ) then
+                   call AMPS_DUMP_sed(4, isect, i, j, 1, iadvv, dt,                     &
+                                      npi, nbi, nci, k1i, k2i, k1m, k2m, k1bi, k2bi,    &
+                                      qipv, qiv, qrv, qcv, trpv(:,2), moist_denv,       &
+                                      thetav, qvv, tv, DENS(KS-1:KE,i,j), MOMZ(KS-1:KE,i,j), &
+                                      U(KS-1:KE,i,j), V(KS-1:KE,i,j),                   &
+                                      CZ(KS-1:KE,i,j), FZ(KS-1:KE,i,j), dzzmv, dzvmv, mmassiv, &
+                                      den_t, MOMZ_t(KS-1:KE,i,j), RHOU_t(KS-1:KE,i,j),  &
+                                      RHOV_t(KS-1:KE,i,j), RHOE_t(KS-1:KE,i,j), SFLX_snow(i,j))
+                end if
              endif
 
 !-----------------------------------------------------------------------------------------------
@@ -5280,5 +5320,55 @@ contains
        call AMPS_DUMP_w_r4(fid, dbintendlm(:,:,:,1:nmic))
     end if
   end subroutine AMPS_DUMP_micro
+
+  subroutine AMPS_DUMP_sed(phase, isect, i, j, isn, iadvv_l, dt,             &
+                           np, nb, nc, k1, k2, k1m, k2m, k1b, k2b,           &
+                           qpv, q_this, q_other, qcv, qtp, moist_denv,       &
+                           thetav, qvv, tv, dens_col, momz_col, u_col, v_col,&
+                           cz_col, fz_col, dzzmv, dzvmv, mmass,              &
+                           den_t, momz_t, rhou_t, rhov_t, rhoe_t, sflx)
+    integer,  intent(in) :: phase, isect, i, j, isn, iadvv_l, np, nb, nc, k1, k2, k1m, k2m
+    real(RP), intent(in) :: dt
+    integer,  intent(in) :: k1b(:,:), k2b(:,:)
+    real(RP), intent(in) :: qpv(:,:,:,:), mmass(:,:,:)
+    real(RP), intent(in) :: q_this(:), q_other(:), qcv(:), qtp(:), moist_denv(:), thetav(:), qvv(:), tv(:)
+    real(RP), intent(in) :: dens_col(:), momz_col(:), u_col(:), v_col(:), cz_col(:), fz_col(:)
+    real(RP), intent(in) :: dzzmv(:), dzvmv(:)
+    real(RP), intent(in) :: den_t(:), momz_t(:), rhou_t(:), rhov_t(:), rhoe_t(:)
+    real(RP), intent(in) :: sflx
+    integer :: fid
+    fid = amps_dump_fid(isect)
+    write(fid) int(1095586132,4), int(1,4)
+    write(fid) int(phase,4), int(TIME_AMPS,4), int(i,4), int(j,4), int(isect,4), int(isn,4)
+    write(fid) int(iadvv_l,4), int(np,4), int(nb,4), int(nc,4)
+    write(fid) int(k1,4), int(k2,4), int(k1m,4), int(k2m,4)
+    call AMPS_DUMP_w_r0(fid, dt)
+    call AMPS_DUMP_w_i1(fid, reshape(k1b, (/size(k1b)/)))
+    call AMPS_DUMP_w_i1(fid, reshape(k2b, (/size(k2b)/)))
+    call AMPS_DUMP_w_r4(fid, qpv)
+    call AMPS_DUMP_w_r1(fid, q_this)
+    call AMPS_DUMP_w_r1(fid, q_other)
+    call AMPS_DUMP_w_r1(fid, qcv)
+    call AMPS_DUMP_w_r1(fid, qtp)
+    call AMPS_DUMP_w_r1(fid, moist_denv)
+    call AMPS_DUMP_w_r1(fid, thetav)
+    call AMPS_DUMP_w_r1(fid, qvv)
+    call AMPS_DUMP_w_r1(fid, tv)
+    call AMPS_DUMP_w_r1(fid, dens_col)
+    call AMPS_DUMP_w_r1(fid, momz_col)
+    call AMPS_DUMP_w_r1(fid, u_col)
+    call AMPS_DUMP_w_r1(fid, v_col)
+    call AMPS_DUMP_w_r1(fid, cz_col)
+    call AMPS_DUMP_w_r1(fid, fz_col)
+    call AMPS_DUMP_w_r1(fid, dzzmv)
+    call AMPS_DUMP_w_r1(fid, dzvmv)
+    call AMPS_DUMP_w_r3(fid, mmass)
+    call AMPS_DUMP_w_r1(fid, den_t)
+    call AMPS_DUMP_w_r1(fid, momz_t)
+    call AMPS_DUMP_w_r1(fid, rhou_t)
+    call AMPS_DUMP_w_r1(fid, rhov_t)
+    call AMPS_DUMP_w_r1(fid, rhoe_t)
+    call AMPS_DUMP_w_r0(fid, sflx)
+  end subroutine AMPS_DUMP_sed
 
 end module scale_atmos_phy_mp_amps
