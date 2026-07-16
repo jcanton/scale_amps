@@ -145,6 +145,17 @@ module scale_atmos_phy_mp_amps
   integer  :: iadvv              = 1
   logical  :: fix_aerosol_type(4) = (/.true., .true., .true., .true./)
 
+  !--- reference-data dump instrumentation (AMPS->icon4py port, M0)
+  logical            :: l_amps_dump           = .false. ! master switch for binary dumps
+  character(len=256) :: amps_dump_dir         = "."     ! output directory (must exist)
+  integer            :: amps_dump_step_stride = 300     ! dump every Nth MP step (TIME_AMPS)
+  integer            :: amps_dump_is          = 0       ! local i range of dumped columns
+  integer            :: amps_dump_ie          = -1      ! (ie<is disables; halo-inclusive local indices)
+  integer            :: amps_dump_js          = 0
+  integer            :: amps_dump_je          = -1
+  integer, allocatable :: amps_dump_fid(:)              ! one unit per OpenMP thread (isect)
+  logical            :: amps_dump_opened      = .false.
+
   integer  :: nx, ny, nz, nzh
   integer, parameter :: max_nmoments_liq=4, max_nmoments_ice=16, max_nmoments_aero=3
   integer, parameter :: nspecies=2, max_char_len=200
@@ -360,7 +371,14 @@ contains
        l_reff_version,     & ! using (1) maximum dimension or (2) equivalent spherical radius for calculating radiation
        fix_aerosol_type,   & ! types of aerosols that are fixed if l_fix_aerosols is true
        amps_debug,         & ! debugging on or off
-       amps_ignore           ! ignore amps microphysics or not
+       amps_ignore,        & ! ignore amps microphysics or not
+       l_amps_dump,        & ! write binary reference dumps around ifc_cloud_micro/sedimentation
+       amps_dump_dir,      & ! directory for dump files
+       amps_dump_step_stride, & ! dump every Nth MP step
+       amps_dump_is,       & ! local i-range start of dumped columns
+       amps_dump_ie,       & ! local i-range end   (ie<is disables)
+       amps_dump_js,       & ! local j-range start
+       amps_dump_je          ! local j-range end
 
     integer :: i, m, n, o, ierr
 
@@ -1422,6 +1440,8 @@ contains
 
     nsect = 1
     !$ nsect = omp_get_max_threads()
+
+    if ( l_amps_dump .and. .not. amps_dump_opened ) call AMPS_DUMP_open(nsect)
 
     if (.not. allocated(CM)) then
        allocate(CM(nsect))
@@ -3717,6 +3737,8 @@ contains
 
 
 
+    if ( l_amps_dump ) call AMPS_DUMP_flush()
+
     TIME_AMPS = TIME_AMPS + 1
 
     do i = 1, 20
@@ -5111,5 +5133,95 @@ contains
 
    end subroutine determine_ice_type
 
+  !-----------------------------------------------------------------------------
+  ! Reference-data dump instrumentation (AMPS->icon4py port).
+  ! Format: per-rank-per-thread unformatted stream files. Ints are int32,
+  ! reals are float64. Arrays are prefixed by one int32 size per rank.
+  !-----------------------------------------------------------------------------
+  subroutine AMPS_DUMP_open(nsect)
+    use scale_prc, only: PRC_myrank, PRC_abort
+    use scale_io, only: IO_get_available_fid
+    integer, intent(in) :: nsect
+    character(len=512) :: fname
+    integer :: is_, ierr
+    allocate(amps_dump_fid(nsect))
+    do is_ = 1, nsect
+       write(fname,'(A,A,I6.6,A,I3.3,A)') trim(amps_dump_dir), '/amps_dump_r', PRC_myrank, '_t', is_, '.bin'
+       amps_dump_fid(is_) = IO_get_available_fid()
+       open( unit   = amps_dump_fid(is_), &
+             file   = trim(fname),        &
+             form   = 'unformatted',      &
+             access = 'stream',           &
+             status = 'replace',          &
+             iostat = ierr )
+       if ( ierr /= 0 ) then
+          LOG_ERROR("AMPS_DUMP_open",*) "cannot open dump file: ", trim(fname)
+          call PRC_abort
+       end if
+    end do
+    amps_dump_opened = .true.
+  end subroutine AMPS_DUMP_open
+
+  subroutine AMPS_DUMP_flush()
+    integer :: is_
+    if ( .not. amps_dump_opened ) return
+    do is_ = 1, size(amps_dump_fid)
+       flush(amps_dump_fid(is_))
+    end do
+  end subroutine AMPS_DUMP_flush
+
+  logical function AMPS_DUMP_active(i, j)
+    integer, intent(in) :: i, j
+    AMPS_DUMP_active = l_amps_dump                                   &
+                 .and. mod(TIME_AMPS, amps_dump_step_stride) == 0    &
+                 .and. i >= amps_dump_is .and. i <= amps_dump_ie     &
+                 .and. j >= amps_dump_js .and. j <= amps_dump_je
+  end function AMPS_DUMP_active
+
+  subroutine AMPS_DUMP_w_i0(fid, a)
+    integer, intent(in) :: fid, a
+    write(fid) int(a,4)
+  end subroutine AMPS_DUMP_w_i0
+
+  subroutine AMPS_DUMP_w_i1(fid, a)
+    integer, intent(in) :: fid
+    integer, intent(in) :: a(:)
+    write(fid) int(size(a,1),4)
+    write(fid) int(a,4)
+  end subroutine AMPS_DUMP_w_i1
+
+  subroutine AMPS_DUMP_w_r0(fid, a)
+    integer, intent(in) :: fid
+    real(RP), intent(in) :: a
+    write(fid) real(a,8)
+  end subroutine AMPS_DUMP_w_r0
+
+  subroutine AMPS_DUMP_w_r1(fid, a)
+    integer, intent(in) :: fid
+    real(RP), intent(in) :: a(:)
+    write(fid) int(size(a,1),4)
+    write(fid) real(a,8)
+  end subroutine AMPS_DUMP_w_r1
+
+  subroutine AMPS_DUMP_w_r2(fid, a)
+    integer, intent(in) :: fid
+    real(RP), intent(in) :: a(:,:)
+    write(fid) int(size(a,1),4), int(size(a,2),4)
+    write(fid) real(a,8)
+  end subroutine AMPS_DUMP_w_r2
+
+  subroutine AMPS_DUMP_w_r3(fid, a)
+    integer, intent(in) :: fid
+    real(RP), intent(in) :: a(:,:,:)
+    write(fid) int(size(a,1),4), int(size(a,2),4), int(size(a,3),4)
+    write(fid) real(a,8)
+  end subroutine AMPS_DUMP_w_r3
+
+  subroutine AMPS_DUMP_w_r4(fid, a)
+    integer, intent(in) :: fid
+    real(RP), intent(in) :: a(:,:,:,:)
+    write(fid) int(size(a,1),4), int(size(a,2),4), int(size(a,3),4), int(size(a,4),4)
+    write(fid) real(a,8)
+  end subroutine AMPS_DUMP_w_r4
 
 end module scale_atmos_phy_mp_amps
