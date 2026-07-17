@@ -19,7 +19,7 @@ table forms). Rows below reflect what was actually run.
 | K-only table, broadcast to (Cell,K) before gather (`table_gather_broadcast`) | A | FAILED — runtime `IndexError` in the embedded gather kernel | FAILED — bare `NotImplementedError` in GTFN's `fuse_as_fieldop` ITIR transform | NO-GO (different failure per backend) |
 | K-only table, pre-tiled to full (Cell,K) shape (`table_gather_tiled`) | A | first=0.002s, steady=2.27ms | first=0.181s, steady=0.16ms (warm-cache re-run; no independent cold-compile number was captured for this exact spike-A variant — see Spike D's `esat_table_tiled` below, same idiom, genuine cold first=2.36s) | GO — adopted LUT idiom |
 | Generated collection kernel, nbins=8 | B | first=0.0s, steady=18.7ms | first=45.3s, steady=5.1ms | GO |
-| Generated collection kernel, nbins=20 | B | first=0.1s, steady=116.4ms | first=340.6s, steady=73.3ms | GO with caveat — in-process compile-cache reuse only, no cross-process reuse (see Compile-time scaling) |
+| Generated collection kernel, nbins=20 | B | first=0.1s, steady=116.4ms | first=340.6s, steady=73.3ms | GO with caveat — in-process compile-cache reuse only, no cross-process reuse (see Findings & decisions §1) |
 | Generated collection kernel, nbins=40, monolithic single operator | B | first=0.5s, steady=497.6ms | FAILED — `RecursionError` at Python's default recursion limit; first=2578.7s, steady=606.1ms once the limit is raised to 1e5 (muphys precedent) | NO-GO — exceeds the 900s (15 min) threshold either way |
 | 80-field (2x40-bin) NamedTuple scan carry, genuine sequential dependency | C | full-scale (NCELLS=4096) impractical: original (degenerate-carry) generator did not complete in ~90-95 min (process disappeared, consistent with an unconfirmed OOM kill); fixed generator's full-scale embedded deliberately not re-attempted (opt-in only, expected to cost at least as much); small-scale (16/64/256 cells) confirms correctness, ~55-56ms/cell | first=186.9s, steady=115.9ms | GO on gtfn_cpu (just past the "clean" 120s boundary, inside go-with-caching band); embedded not viable at production scale |
 | Analytic Murphy-Koop `esat_analytic` | D | first=0.02s, steady=10.22ms | first=5.28s, steady=12.76ms | GO — exact vs. the analytic formula by construction, slower than the table on gtfn_cpu |
@@ -223,3 +223,13 @@ from the spec required:
 - Sedimentation scan codegen must treat the `scan_operator`'s returned
   NamedTuple as the post-update carry, matching this level's output field
   value directly — no pre/post flip needed (Spike C).
+- Reference-data format deviates from spec §7, which specified NetCDF: the
+  M0 instrumentation (Tasks 1-4) instead emits raw per-thread binary streams
+  (`amps_dump_r{rank}_t{thread}.bin`) read back by a Python reader
+  (`scripts/amps_dump_reader.py`); the converter's own output remains npz,
+  not NetCDF — a NetCDF export can be produced at M1's reader if still
+  needed downstream. The dump format also carries no in-record config echo
+  (namelist/habit settings are not written into the binary stream itself),
+  so run configs (`run.conf`/`restart_run.conf`, `AMPSTASK.F`) must be
+  preserved alongside each tarball for per-call replay to be meaningful —
+  see the "Collect results" step in the reference-data run instructions.
