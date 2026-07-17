@@ -87,7 +87,7 @@ Codegen emits committed, inspectable `.py` files — reviewable upstream, debugg
 
 - **Bin state = generated NamedTuple bundles of `(Cell, K)` fields** per (property, bin). Property names derived from `par_amps` index maps.
 - **Persistent between calls:** bin bundles + thermo fields only. All `Mass_Bin`/`Ice_Shape` diagnostic members (terminal velocity, capacitance, ventilation, semi-axes, …) are intermediates recomputed per substep (matches Fortran `diag_pq` refresh).
-- **Config:** frozen dataclasses. `micexfg(1:18)` → named booleans/enums (index 19–20 unused/dead). Derived parameters in `__post_init__` (diffusion-granule style).
+- **Config:** frozen dataclasses. `micexfg(1:19)` → named booleans/enums (index 19 = DHF activation flag `iflg_dhf` into `cal_aptact_var8_kc04dep`, per `class_Cloud_Micro.F90:1285`; index 20 genuinely unreferenced). Derived parameters in `__post_init__` (diffusion-granule style).
 - **Global state eliminated:** `par_amps`/`maxdims`/`com_amps` → constants + config + init-time tables. Sequential LCG → counter-based hash RNG in DSL integer ops.
 - **Sparsity:** dense masked computation with `where`; no compressed index lists.
 
