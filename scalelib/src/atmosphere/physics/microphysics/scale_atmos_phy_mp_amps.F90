@@ -5286,7 +5286,7 @@ contains
                              tvm, wbvm, trpvm, qrpvm, qipvm, qapvm,         &
                              dmtendlm, dcontendlm, dbintendlm)
     integer,  intent(in) :: phase, isect, i, j, nmic, istrt
-    real(RP), intent(in) :: dt
+    real(DP), intent(in) :: dt
     integer,  intent(in) :: jseed_t, ifrst_t, isect_seed_t, nextn_t
     integer,  intent(in) :: kmicvm(:)
     real(RP), intent(in) :: qcvm(:), v3v(:), qvvm(:), moist_denvm(:), ptotvm(:), tvm(:), wbvm(:)
@@ -5328,7 +5328,7 @@ contains
                            cz_col, fz_col, dzzmv, dzvmv, mmass,              &
                            den_t, momz_t, rhou_t, rhov_t, rhoe_t, sflx)
     integer,  intent(in) :: phase, isect, i, j, isn, iadvv_l, np, nb, nc, k1, k2, k1m, k2m
-    real(RP), intent(in) :: dt
+    real(DP), intent(in) :: dt
     integer,  intent(in) :: k1b(:,:), k2b(:,:)
     real(RP), intent(in) :: qpv(:,:,:,:), mmass(:,:,:)
     real(RP), intent(in) :: q_this(:), q_other(:), qcv(:), qtp(:), moist_denv(:), thetav(:), qvv(:), tv(:)
