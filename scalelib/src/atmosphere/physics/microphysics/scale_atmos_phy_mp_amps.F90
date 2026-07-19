@@ -809,6 +809,11 @@ contains
                    REAL_FX,     &    ! [IN]
                    REAL_FY)          ! [IN]
 
+    ! one-shot reference dump of the collisional-breakup fragment tables
+    ! (bu_fd/bu_tmass) computed inside init_AMPS -> binmicrosetup_scale ->
+    ! cal_breakfragment; gated by l_amps_dump, rank 0 only (see
+    ! AMPS_DUMP_setup's own docstring above).
+    call AMPS_DUMP_setup()
 
     ! set up the constants for the distribution of aerosols
     select case(ini_aerosol_prf)
@@ -5225,6 +5230,51 @@ contains
        flush(amps_dump_fid(is_))
     end do
   end subroutine AMPS_DUMP_flush
+
+  ! ---------------------------------------------------------------------------
+  ! AMPS_DUMP_setup: one-shot dump of the Low-List collisional-breakup
+  ! fragment tables (bu_fd, bu_tmass) and their four index scalars
+  ! (jmin_bk, imin_bk, imax_bk, jmax_bk), plus the liquid bin boundaries
+  ! (binbr), computed once by cal_breakfragment (called from
+  ! binmicrosetup_scale, mod_amps_lib.F90:665) at AMPS setup. These are
+  ! pure setup-time constants for a fixed bin grid/air state (see
+  ! cal_breakfragment's own module docstring) -- identical across ranks --
+  ! so this dumps ONCE, rank 0 only, independent of the per-timestep
+  ! AMPS_DUMP_active gate/amps_dump_fid infra those use. Reference data for
+  ! the icon4py M2b Task 6 port of cal_breakfragment
+  ! (docs/superpowers/facts/m2b/breakfragment-full-chain.md).
+  ! ---------------------------------------------------------------------------
+  subroutine AMPS_DUMP_setup()
+    use com_amps, only: &
+         bu_fd, bu_tmass, jmin_bk, imin_bk, imax_bk, jmax_bk, binbr
+    use scale_prc, only: PRC_abort, PRC_IsMaster
+    use scale_io, only: IO_get_available_fid
+    character(len=512) :: fname
+    integer :: fid, ierr
+    if ( .not. l_amps_dump .or. .not. PRC_IsMaster ) return
+    write(fname,'(A,A)') trim(amps_dump_dir), '/amps_dump_setup.bin'
+    fid = IO_get_available_fid()
+    open( unit   = fid,               &
+          file   = trim(fname),       &
+          form   = 'unformatted',     &
+          access = 'stream',          &
+          status = 'replace',         &
+          iostat = ierr )
+    if ( ierr /= 0 ) then
+       LOG_ERROR("AMPS_DUMP_setup",*) "cannot open setup dump file: ", trim(fname)
+       call PRC_abort
+    end if
+    write(fid) int(1095586133,4), int(1,4)   ! magic (distinct from AMPS_DUMP_micro/_sed), version
+    call AMPS_DUMP_w_i0(fid, nbr)
+    call AMPS_DUMP_w_i0(fid, jmin_bk)
+    call AMPS_DUMP_w_i0(fid, imin_bk)
+    call AMPS_DUMP_w_i0(fid, imax_bk)
+    call AMPS_DUMP_w_i0(fid, jmax_bk)
+    call AMPS_DUMP_w_r1(fid, binbr(1:nbr+1))
+    call AMPS_DUMP_w_r1(fid, bu_tmass)
+    call AMPS_DUMP_w_r2(fid, bu_fd)
+    close(fid)
+  end subroutine AMPS_DUMP_setup
 
   logical function AMPS_DUMP_active(i, j)
     integer, intent(in) :: i, j

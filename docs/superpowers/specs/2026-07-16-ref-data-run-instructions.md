@@ -77,6 +77,53 @@ Notes:
   worst case 5 x 4 x 2 x ~0.6 MB ~ 12 MB per rank, still well under the
   spin-up total.
 
+## 2a. Breakup fragment tables (M2b Task 6, `amps_dump_setup.bin`)
+
+`l_amps_dump=.true.` (the same flag as §2, no extra namelist field) now
+ALSO produces a small, ONE-SHOT `amps_dump_setup.bin` file at the root of
+`amps_dump_dir` (i.e. `amps_dump/amps_dump_setup.bin`, a sibling of the
+per-rank `amps_dump_r<rank>_t<thread>.bin` files, NOT inside a
+subdirectory) — written by the new `AMPS_DUMP_setup` subroutine
+(`scale_atmos_phy_mp_amps.F90`), called once from `ATMOS_PHY_MP_amps_setup`
+right after `init_AMPS` (i.e. right after `binmicrosetup_scale` ->
+`cal_breakfragment` computes the Low-List collisional-breakup fragment
+tables `bu_fd`/`bu_tmass`), rank 0 only. This is the reference data for
+icon4py's `core/breakfragment.py` port of `cal_breakfragment`
+(`docs/superpowers/facts/m2b/breakfragment-full-chain.md`).
+
+Unlike the per-column micro/sed dumps (§2), this record is:
+
+- **Independent of `amps_dump_step_stride`/`amps_dump_is`/`_ie`/`_js`/`_je`**
+  — those gate the PER-TIMESTEP, per-column dumps only; `AMPS_DUMP_setup`
+  fires unconditionally at setup whenever `l_amps_dump=.true.`, before the
+  time loop even starts.
+- **A single file, not one per rank/thread** — `bu_fd`/`bu_tmass` are pure
+  setup-time constants (fixed bin grid + fixed air state, `T=278.6795 K,
+  PT=850 hPa, RH=100%`), identical across every rank, so only rank 0
+  writes it.
+- **Cheap** — one record, `O(kk_max)` doubles (`kk_max=17835` for the
+  40-bin spin-up grid, ~140 KB), independent of run duration.
+
+Consequently: **no full spin-up/seeding run is needed to produce it.** A
+run that sets `l_amps_dump=.true.` and exits after AMPS setup (e.g. a
+`TIME_DURATION` of a single step, or any short smoke run of the existing
+`run.conf`) is sufficient — `amps_dump_setup.bin` is written before the
+first microphysics timestep executes. If a full spin-up run (§3) is
+launched anyway (e.g. for the per-column micro/sed dumps), the SAME run
+also produces `amps_dump_setup.bin` for free, no separate submission
+needed — just remember to collect it (§4).
+
+Read with `driver.ref_data.read_setup_dump(path)` (icon4py side,
+`model/atmosphere/subgrid_scale_physics/amps/src/icon4py/model/atmosphere/
+subgrid_scale_physics/amps/driver/ref_data.py`) -> a `SetupRecord` with
+`nbr`/`jmin_bk`/`imin_bk`/`imax_bk`/`jmax_bk`/`binbr`/`bu_tmass`/`bu_fd`.
+`model/atmosphere/subgrid_scale_physics/amps/tests/amps/unit_tests/
+test_breakfragment.py::test_breakup_tables_match_amps_setup_dump`
+(`pytest.mark.datatest`) picks it up automatically once placed at
+`$AMPS_DUMP_DIR` (file or containing directory) or
+`$ICON4PY_TEST_DATA_PATH/amps/amps_dump_setup.bin` — no code change
+needed.
+
 ## 3. Runs wanted
 
 1. **Warm spin-up** (`run.conf`): primary M2 validation target. It is
@@ -171,6 +218,10 @@ the dump, the two runs' tarballs are indistinguishable):
     cp run.conf AMPSTASK.F amps_dump/          # or restart_run.conf
     tar czf amps_dump_<runname>.tar.gz amps_dump/
 
+`amps_dump_setup.bin` (§2a) is already inside `amps_dump/` (rank 0 wrote
+it there directly, same directory as the per-rank files) — no separate
+copy step needed, it travels with the tarball above.
+
 Copy the tarballs back. Locally they are parsed with:
 
     python3 scripts/amps_dump_reader.py amps_dump/ -o amps_ref_<runname>.npz
@@ -179,6 +230,9 @@ Copy the tarballs back. Locally they are parsed with:
 
 - `amps_dump/` contains `amps_dump_r<rank>_t<thread>.bin` files with
   nonzero size for ranks whose local 2x2 box had cloud.
+- `amps_dump/amps_dump_setup.bin` exists and is nonzero size (§2a) --
+  present even if every per-column dump above is empty (no cloud in any
+  dumped box), since it fires unconditionally at setup.
 - The reader completes without "bad magic" errors — if it fails, the
   record layout in the Fortran patch and `scripts/amps_dump_reader.py`
   have diverged; do not proceed, report back.
