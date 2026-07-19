@@ -116,3 +116,8 @@ scope:
 - **#1** (this task): `AMPS_DUMP_micro`/`AMPS_DUMP_sed` `dt` dummy kind `real(RP)`→`real(DP)` — fixed in `scalelib/src/atmosphere/physics/microphysics/scale_atmos_phy_mp_amps.F90`.
 - **#2**: dump-reader version-mismatch checks are `raise ValueError`, not `assert` (Python `-O` safe) — done in `driver/ref_data.py` (M1 Task 8).
 - **#4**: esat table accessor's truncate-then-clamp index arithmetic preserved bit-exact — done in `core/thermo.py` (M1 Task 2).
+
+## Open leads (tracked; from real-dump validation)
+
+- **Condensation magnitude under-production** (found in M2a real-data smoke vs `warm` dumps): the warm condensation path (activation + vapor_deposition) shows ~0.62 correlation / ~82% sign agreement with the Fortran bulk liquid-mass/vapor delta but explains only ~5% of magnitude (~6.8% on port-active levels, ~23% on port-silent levels). Most of the residual is the missing collision+breakup (per-bin spectral correlation ~0 = collision fingerprint) — so this lead can only be isolated AFTER M2b collision lands. Reproduction case: `warm` run, rank 0, TIME_AMPS=1800, i=j=3. Candidate hypotheses to check once collision is in and magnitude still under-produces: (a) `s_v_n` supersaturation precision in weakly-subsaturated regimes; (b) a units/scale issue in the vapor_deposition shift-bin remap for small `d_mean_mass`. Full analysis: icon4py `.superpowers/sdd/m2a-realdata-report.md` (gitignored).
+- **allow_dep_placeholder run-level assumption**: the real-data replay sets `allow_dep_placeholder=True` unconditionally, valid for the `warm` run (documented no dust/IN aerosol) but NOT verified per-column against dumped aerosol category-2; must be revisited before pointing the harness at a seeding (ice) run.
